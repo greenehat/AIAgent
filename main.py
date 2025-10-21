@@ -67,32 +67,43 @@ available_functions = types.Tool(
     )
 
 def generate_content(client, messages, verbose):
-    
-    response = client.models.generate_content(
-        model='gemini-2.0-flash-001',
-        contents= messages,
-        config=types.GenerateContentConfig(
-            tools=[available_functions], system_instruction=system_prompt),
-    )
-    if verbose:
-        print(f"Prompt tokens: {response.usage_metadata.prompt_token_count}")
-        print(f"Response tokens: {response.usage_metadata.candidates_token_count}")
-         
-    print("Response:")
-    if response.function_calls:
-        called_function = response.function_calls[0]
-        function_call_result = call_function(called_function,verbose=verbose)
-        if not (hasattr(function_call_result,"parts")
-            and len(function_call_result.parts) != 0
-            and hasattr(function_call_result.parts[0],"function_response")
-            and hasattr(function_call_result.parts[0].function_response,"response")):
-            raise Exception("Error calling function")
-        if verbose:
-            print(f"-> {function_call_result.parts[0].function_response.response}")
-    else:
-        print(response.text)
+    for i in range(20):
+        try:
+            response = client.models.generate_content(
+                model='gemini-2.0-flash-001',
+                contents= messages,
+                config=types.GenerateContentConfig(
+                    tools=[available_functions], system_instruction=system_prompt),
+            )
+        
+        
+            if verbose:
+                print(f"Prompt tokens: {response.usage_metadata.prompt_token_count}")
+                print(f"Response tokens: {response.usage_metadata.candidates_token_count}")
 
+            for candidate in response.candidates:
+                messages.append(candidate.content)
 
+            
+            if response.function_calls:
+                called_function = response.function_calls[0]
+                function_call_result = call_function(called_function,verbose=verbose)
+                if not (hasattr(function_call_result,"parts")
+                    and len(function_call_result.parts) != 0
+                    and hasattr(function_call_result.parts[0],"function_response")
+                    and hasattr(function_call_result.parts[0].function_response,"response")):
+                    raise Exception("Error calling function")
+                messages.append(types.Content(role="user", parts=function_call_result.parts))
+                if verbose:
+                    print(f"-> {function_call_result.parts[0].function_response.response}")
+            else:
+                print("Final Response:")
+                print(response.text)
+                break
+
+        except Exception as e:
+            print(f"Something went wrong: {e}")
+            break
 
 if __name__ == "__main__":
     main()
